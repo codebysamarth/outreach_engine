@@ -1,0 +1,85 @@
+version: "3.11"
+
+# ---------------------------------------------------------------------------
+# Outreach Engine – local stack
+# ---------------------------------------------------------------------------
+#   postgres   – state persistence (pgvector extension for embeddings)
+#   ollama     – local LLM inference (no external AI API)
+#   chromadb   – standalone vector store (fallback / lighter option)
+# ---------------------------------------------------------------------------
+
+services:
+  # ---- Postgres + pgvector ------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16          # official pgvector image
+    container_name: outreach_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-outreach}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB:       ${POSTGRES_DB:-outreach_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:    ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-outreach}"]
+      interval: 5s
+      timeout:  3s
+      retries:  5
+
+  # ---- Ollama (local LLM) -------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: outreach_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"                      # default Ollama HTTP port
+    volumes:
+      - ollama_models:/root/.ollama/models  # cache downloaded models
+    # GPU support – uncomment the block below if you have an NVIDIA card
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: [gpu]
+
+  # ---- ChromaDB (lightweight vector store) ---------------------------------
+  chromadb:
+    image: chromadb/chromadb:latest
+    container_name: outreach_chromadb
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chromadb_data:/app/data
+
+  # ---- FastAPI Backend (web interface) ------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: outreach_api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-outreach}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB:       ${POSTGRES_DB:-outreach_db}
+      POSTGRES_HOST:     postgres
+      OLLAMA_BASE_URL:   http://ollama:11434
+      CHROMADB_HOST:     chromadb
+    depends_on:
+      - postgres
+      - ollama
+      - chromadb
+    volumes:
+      - ./uploads:/app/uploads
+      - .:/app
+
+# ---- named volumes --------------------------------------------------------
+volumes:
+  pgdata:
+  ollama_models:
+  chromadb_data:

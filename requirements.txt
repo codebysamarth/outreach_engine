@@ -1,0 +1,55 @@
+# =============================================================================
+# Outreach Engine – Python dependencies
+# =============================================================================
+
+# ─── LangChain / LangGraph core ─────────────────────────────────────────────
+langchain>=0.2.0
+langgraph>=0.2.0
+langchain-community>=0.2.0
+
+# ─── LLM providers ──────────────────────────────────────────────────────────
+langchain-ollama>=0.1.0            # local Ollama integration
+
+# ─── Gmail integration ───────────────────────────────────────────────────────
+langchain-google-community[gmail]>=0.1.0
+google-auth-oauthlib>=1.2.0
+google-api-python-client>=2.0.0
+
+# ─── Twilio SMS ──────────────────────────────────────────────────────────────
+twilio>=9.0.0
+
+# ─── Vector store ────────────────────────────────────────────────────────────
+chromadb>=0.5.0
+sentence-transformers>=2.2.0       # local embedding model (all-MiniLM-L6-v2)
+
+# ─── Postgres + pgvector ─────────────────────────────────────────────────────
+sqlalchemy[asyncio]>=2.0.0
+asyncpg>=0.29.0                    # async postgres driver
+psycopg2-binary>=2.9.0            # sync fallback / Alembic
+pgvector>=0.2.0                    # SQLAlchemy pgvector type helpers
+
+# ─── Alembic (migrations) ────────────────────────────────────────────────────
+alembic>=1.13.0
+
+# ─── Settings & validation ───────────────────────────────────────────────────
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+
+# ─── HTTP / scraping (ingestion helper) ─────────────────────────────────────
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# ─── Document processing (PDF/DOC support) ───────────────────────────────────
+PyPDF2>=3.0.0
+python-docx>=1.1.0
+
+# ─── FastAPI backend ─────────────────────────────────────────────────────────
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6             # file upload support
+websockets>=12.0
+
+# ─── Std-lib extras ──────────────────────────────────────────────────────────
+python-dateutil>=2.8.0

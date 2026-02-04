@@ -1,0 +1,140 @@
+"""
+app/db/vector_store.py
+──────────────────────
+Thin wrapper around ChromaDB.
+
+Two operations the pipeline uses:
+  1.  query_similar_personas(tone_text)  → list of past persona summaries
+      called by persona_agent to enrich its prompt with "here is how
+      similar people communicate".
+  2.  upsert_persona(target_hash, tone_summary, metadata)
+      called by the persistence stage after a successful run so the
+      next run can benefit.
+
+Embedding model: sentence-transformers/all-MiniLM-L6-v2 (runs fully offline).
+"""
+
+from __future__ import annotations
+import logging
+from typing import Any
+
+import chromadb
+from chromadb.config import Settings as ChromaSettings
+from sentence_transformers import SentenceTransformer
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Embedding model  (loaded once at import time – ~90 MB, fast on CPU)
+# ---------------------------------------------------------------------------
+_EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
+_embed_model: SentenceTransformer | None = None
+
+
+def _get_embed_model() -> SentenceTransformer:
+    global _embed_model
+    if _embed_model is None:
+        logger.info("Loading embedding model: %s", _EMBED_MODEL_NAME)
+        _embed_model = SentenceTransformer(_EMBED_MODEL_NAME)
+    return _embed_model
+
+
+# ---------------------------------------------------------------------------
+# ChromaDB client  (connects to the Docker container)
+# ---------------------------------------------------------------------------
+_chroma_client: chromadb.HttpClient | None = None
+
+
+def _get_chroma_client() -> chromadb.HttpClient:
+    global _chroma_client
+    if _chroma_client is None:
+        _chroma_client = chromadb.HttpClient(
+            host=settings.chroma.host,
+            port=settings.chroma.port,
+        )
+        logger.info(
+            "Connected to ChromaDB at %s:%s",
+            settings.chroma.host, settings.chroma.port,
+        )
+    return _chroma_client
+
+
+def _get_collection() -> chromadb.Collection:
+    """Get (or create) the target collection."""
+    client = _get_chroma_client()
+    return client.get_or_create_collection(
+        name=settings.chroma.collection,
+        metadata={"hnsw:space": "cosine"},   # cosine similarity
+    )
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def query_similar_personas(
+    tone_text: str,
+    top_k: int = 3,
+) -> list[dict[str, Any]]:
+    """
+    Return the `top_k` most similar past persona tone-summaries.
+
+    Each returned dict has:
+        {
+            "tone_summary": <str>,          # the text we stored
+            "industry":     <str | None>,   # from metadata
+            "similarity":   <float>,        # 1 - distance (cosine)
+        }
+    """
+    collection = _get_collection()
+
+    if collection.count() == 0:
+        logger.debug("Vector store is empty – returning no similar personas.")
+        return []
+
+    embed = _get_embed_model().encode(tone_text).tolist()
+
+    results = collection.query(
+        query_embeddings=[embed],
+        n_results=min(top_k, collection.count()),
+        include=["documents", "metadatas", "distances"],
+    )
+
+    # ChromaDB returns nested lists (one list per query)
+    docs       = results["documents"][0]      if results["documents"]  else []
+    metadatas  = results["metadatas"][0]      if results["metadatas"]  else []
+    distances  = results["distances"][0]      if results["distances"]  else []
+
+    out: list[dict[str, Any]] = []
+    for doc, meta, dist in zip(docs, metadatas, distances):
+        out.append({
+            "tone_summary": doc,
+            "industry":     meta.get("industry"),
+            "similarity":   round(1 - dist, 3),   # cosine: sim = 1 - dist
+        })
+    return out
+
+
+def upsert_persona(
+    target_hash: str,
+    tone_summary: str,
+    metadata: dict[str, str] | None = None,
+) -> None:
+    """
+    Store (or overwrite) a persona tone-summary so future runs can
+    learn from it.
+
+    `metadata`  – small dict of non-PII tags, e.g. {"industry": "SaaS"}
+    """
+    collection = _get_collection()
+    embed = _get_embed_model().encode(tone_summary).tolist()
+
+    collection.upsert(
+        ids=[target_hash],                          # idempotent on same target
+        embeddings=[embed],
+        documents=[tone_summary],
+        metadatas=[metadata or {}],
+    )
+    logger.info("Upserted persona for target_hash=%s", target_hash)
