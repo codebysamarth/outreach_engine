@@ -103,8 +103,6 @@ npm run dev
 # 8. Open http://localhost:5173 in browser
 ```
 
-> **Demo Mode**: If you just want to test the UI without setting up everything, the frontend works in demo mode when the backend is unavailable!
-
 ---
 
 ## 📦 What You Need to Install
@@ -140,45 +138,7 @@ These install automatically - no manual download needed:
 | **Gmail Credentials** | Only for real email sending |
 | **Twilio Account** | Only for real SMS sending |
 
-### Understanding Key Concepts
-
-#### What are Embeddings?
-- **Problem**: How does AI understand that "Software Engineer" and "Developer" are similar?
-- **Solution**: Convert text to numbers (vectors) - similar text = similar numbers
-- **Example**: "I love coding" → `[0.23, -0.45, 0.87, ...]` (768 numbers)
-- **Offline**: We use `sentence-transformers` library - runs 100% on your computer, no API calls
-
-#### What is ChromaDB (Vector Database)?
-- Stores embeddings for fast similarity search
-- **Use case**: Find past prospects similar to current one
-- **Auto-setup**: Creates `chroma_data/` folder automatically, no configuration needed
-
 ---
-
-## 📤 Uploading to GitHub
-
-### What Gets Uploaded (Safe)
-```
-✅ app/              - Python backend code
-✅ frontend/src/     - React frontend code
-✅ requirements.txt  - Python dependencies list
-✅ package.json      - Node dependencies list
-✅ README.md         - Documentation
-✅ .env.example      - Template for environment variables
-✅ .gitignore        - Excludes sensitive files
-✅ docker-compose.yml- Docker configuration
-```
-
-### What Gets Excluded (via .gitignore)
-```
-❌ .env              - Your secrets (API keys, passwords)
-❌ venv/             - Python virtual environment (~500MB)
-❌ node_modules/     - Node packages (~200MB)
-❌ chroma_data/      - Generated vector database
-❌ uploads/          - User uploaded files
-❌ __pycache__/      - Python cache
-❌ credentials.json  - OAuth credentials
-```
 
 ### Upload Commands
 ```powershell
